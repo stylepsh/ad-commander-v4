@@ -355,9 +355,26 @@ function renderPinScreen() {
     </style>
     <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg-primary);padding:20px">
       <div style="width:100%;max-width:340px;text-align:center">
-        <div style="font-size:3rem;margin-bottom:12px">⚡</div>
-        <h1 style="font-size:1.3rem;font-weight:800;margin-bottom:4px;color:var(--text-primary)">AD Commander</h1>
-        <div style="font-size:0.72rem;color:var(--text-muted);margin-bottom:6px">v4.0 — 루멘트 전용</div>
+        <div style="font-size:3rem;margin-bottom:12px">${(() => {
+          const h = new Date().getHours();
+          if (h < 6) return '🌙';
+          if (h < 9) return '🌅';
+          if (h < 12) return '☀️';
+          if (h < 18) return '⚡';
+          if (h < 22) return '🌆';
+          return '🌙';
+        })()}</div>
+        <h1 style="font-size:1.2rem;font-weight:800;margin-bottom:6px;color:var(--text-primary);line-height:1.6">${(() => {
+          const h = new Date().getHours();
+          if (h < 6) return '늦은 시간까지 수고하세요<br>박성혁 팀장님 💪';
+          if (h < 9) return '좋은 아침이에요!<br>박성혁 팀장님 ☀️';
+          if (h < 12) return '고객지원팀 박성혁 팀장님<br>안녕하세요! 👋';
+          if (h < 14) return '점심은 드셨나요?<br>박성혁 팀장님 🍚';
+          if (h < 18) return '오늘도 힘내세요!<br>박성혁 팀장님 💪';
+          if (h < 22) return '오늘 하루도 수고 많으셨어요<br>박성혁 팀장님 🌟';
+          return '늦은 시간까지 수고하세요<br>박성혁 팀장님 💪';
+        })()}</h1>
+        <div style="font-size:0.72rem;color:var(--text-muted);margin-bottom:24px">루멘트 광고관제 시스템</div>
         <div style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:28px">PIN 4자리를 입력하세요</div>
         
         <div id="pinDotsWrap" style="display:flex;gap:16px;justify-content:center;margin-bottom:12px">
