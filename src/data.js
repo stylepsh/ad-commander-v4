@@ -508,3 +508,17 @@ export function initKeyboardShortcuts(callbacks) {
     }
   });
 }
+
+/* ========= PIN & AUTH helpers (avoid circular deps) ========= */
+export function changePin(newPin) {
+  if (newPin && newPin.length === 4 && /^\d{4}$/.test(newPin)) {
+    localStorage.setItem('adcommander_v4_pin', newPin);
+    return true;
+  }
+  return false;
+}
+
+export function logout() {
+  localStorage.removeItem('adcommander_v4_auth');
+  location.reload();
+}

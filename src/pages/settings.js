@@ -2,12 +2,13 @@
    Settings V4.0 — 설정 & 매출 & 데이터 관리
    담당자 퍼포먼스, 휴지통, 백업, 다크모드 설정 등
    ======================================== */
-import { getApp, setData, navigate, showModal, closeModal, toggleDarkMode, changePin, logout } from '../main.js';
+import { getApp, setData, navigate, showModal, closeModal, toggleDarkMode } from '../main.js';
 import {
   generateId, formatMoney, getRevenueThisMonth,
   getPerformanceByManager, getBackupList, restoreBackup,
   getTrash, restoreFromTrash, showToast,
-  getUnpaidTotal, getUnpaidClients
+  getUnpaidTotal, getUnpaidClients,
+  changePin, logout
 } from '../data.js';
 import { exportAllToExcel, exportClientsToExcel, exportTasksToExcel, exportRevenueToExcel, exportSalesReportToExcel } from '../excel.js';
 import { generateSettlementPDF } from '../pdf.js';
