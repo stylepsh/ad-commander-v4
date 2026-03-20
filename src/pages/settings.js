@@ -93,11 +93,24 @@ export function renderSettings() {
       </div>
     ` : ''}
 
-    <!-- Profile -->
-    <div class="section-header fade-in"><div class="section-title">👤 프로필</div></div>
+    <!-- Profile & Company Info -->
+    <div class="section-header fade-in"><div class="section-title">👤 프로필 & 회사 정보</div></div>
     <div class="card fade-in mb-md" style="padding:16px">
-      <div class="ai-input-group"><label class="ai-label">이름</label><input class="ai-input" id="sName" value="${data.settings.userName}" /></div>
-      <div class="ai-input-group" style="margin-bottom:0"><label class="ai-label">회사명</label><input class="ai-input" id="sCompany" value="${data.settings.companyName || ''}" /></div>
+      <div class="grid-2">
+        <div class="ai-input-group"><label class="ai-label">이름</label><input class="ai-input" id="sName" value="${data.settings.userName}" /></div>
+        <div class="ai-input-group"><label class="ai-label">회사명</label><input class="ai-input" id="sCompany" value="${data.settings.companyName || ''}" /></div>
+      </div>
+      <div class="ai-input-group"><label class="ai-label">사업자등록번호</label><input class="ai-input" id="sBizNumber" value="${data.settings.bizNumber || ''}" placeholder="880-03-03743" /></div>
+      <div class="ai-input-group"><label class="ai-label">사업장 주소</label><input class="ai-input" id="sAddress" value="${data.settings.companyAddress || ''}" /></div>
+      <div class="grid-2">
+        <div class="ai-input-group"><label class="ai-label">업태</label><input class="ai-input" id="sBizType" value="${data.settings.bizType || ''}" /></div>
+        <div class="ai-input-group"><label class="ai-label">종목</label><input class="ai-input" id="sBizItem" value="${data.settings.bizItem || ''}" /></div>
+      </div>
+      <div class="ai-input-group"><label class="ai-label">회사 이메일</label><input class="ai-input" id="sCompanyEmail" value="${data.settings.companyEmail || ''}" /></div>
+      <div class="grid-2">
+        <div class="ai-input-group"><label class="ai-label">연락처</label><input class="ai-input" id="sPhone" value="${data.settings.managerPhone || ''}" /></div>
+        <div class="ai-input-group" style="margin-bottom:0"><label class="ai-label">개인 이메일</label><input class="ai-input" id="sEmail" value="${data.settings.managerEmail || ''}" /></div>
+      </div>
     </div>
 
     <!-- Slot Defaults -->
@@ -234,8 +247,15 @@ function bindSettingsEvents() {
 
   // Save settings
   document.getElementById('saveAll')?.addEventListener('click', () => {
-    data.settings.userName = document.getElementById('sName').value || '지휘관';
+    data.settings.userName = document.getElementById('sName').value || '박성혁';
     data.settings.companyName = document.getElementById('sCompany').value || '';
+    data.settings.bizNumber = document.getElementById('sBizNumber').value || '';
+    data.settings.companyAddress = document.getElementById('sAddress').value || '';
+    data.settings.bizType = document.getElementById('sBizType').value || '';
+    data.settings.bizItem = document.getElementById('sBizItem').value || '';
+    data.settings.companyEmail = document.getElementById('sCompanyEmail').value || '';
+    data.settings.managerPhone = document.getElementById('sPhone').value || '';
+    data.settings.managerEmail = document.getElementById('sEmail').value || '';
     data.settings.defaultSlotId = document.getElementById('sSlotId').value || 'stylepsh';
     data.settings.defaultSlotPw = document.getElementById('sSlotPw').value || '123456';
     data.settings.defaultManager = document.getElementById('sManager').value || '';

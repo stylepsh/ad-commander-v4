@@ -275,9 +275,31 @@ initKeyboardShortcuts({
   redo: handleRedo,
   closeModal: closeModal,
 });
-render();
 
-// Show startup notification
-const h = new Date().getHours();
-const greeting = h < 6 ? '새벽' : h < 12 ? '좋은 아침' : h < 18 ? '좋은 오후' : '수고했어요';
-showToast(`${greeting}! AD Commander V4.0 준비 완료 ⚡`, 'success', 2500);
+// #8 Show skeleton loading, then render
+const app = document.getElementById('app');
+app.innerHTML = `
+  <div style="padding:20px">
+    <div class="skeleton" style="height:48px;border-radius:12px;margin-bottom:16px"></div>
+    <div class="skeleton" style="height:80px;border-radius:12px;margin-bottom:12px"></div>
+    <div class="skeleton" style="height:120px;border-radius:12px;margin-bottom:12px"></div>
+    <div class="skeleton" style="height:60px;border-radius:12px;margin-bottom:12px"></div>
+  </div>
+`;
+setTimeout(() => {
+  render();
+  // Show startup notification
+  const h = new Date().getHours();
+  const greeting = h < 6 ? '새벽' : h < 12 ? '좋은 아침' : h < 18 ? '좋은 오후' : '수고했어요';
+  showToast(`${greeting}! AD Commander V4.0 준비 완료 ⚡`, 'success', 2500);
+}, 120);
+
+// #41 PWA Service Worker 등록
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js')
+      .then(reg => console.log('SW registered:', reg.scope))
+      .catch(err => console.log('SW failed:', err));
+  });
+}
+

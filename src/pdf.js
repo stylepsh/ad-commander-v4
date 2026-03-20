@@ -73,14 +73,23 @@ export function generateQuotePDF(client, settings = {}) {
     doc.text(`BRN: ${formatBizNumber(client.bizNumber)}`, 15, y + 15);
   }
 
-  // 오른쪽: 발신자
+  // 오른쪽: 발신자 (루멘트 회사 정보)
   doc.setFontSize(8);
   doc.setTextColor(120, 120, 140);
   doc.text('FROM', 130, y);
   doc.setFontSize(10);
   doc.setTextColor(30, 30, 46);
-  doc.text(settings.userName || 'AD Commander', 130, y + 5);
-  if (settings.companyName) doc.text(settings.companyName, 130, y + 10);
+  doc.text(settings.companyName || 'AD Commander', 130, y + 5);
+  if (settings.bizNumber) {
+    doc.setFontSize(8);
+    doc.setTextColor(120, 120, 140);
+    doc.text(`BRN: ${formatBizNumber(settings.bizNumber)}`, 130, y + 10);
+  }
+  doc.setFontSize(8);
+  doc.setTextColor(100, 100, 120);
+  if (settings.userName) doc.text(settings.userName, 130, y + 15);
+  if (settings.managerPhone) doc.text(settings.managerPhone, 130, y + 20);
+  if (settings.managerEmail) doc.text(settings.managerEmail, 130, y + 25);
 
   y += 25;
 

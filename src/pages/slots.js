@@ -3,7 +3,7 @@
    마진 실시간 계산, 프리셋 버튼, 개선된 자동완성
    ======================================== */
 import { getApp, setData, navigate, showModal, closeModal } from '../main.js';
-import { SLOT_TYPES, generateId, showToast, calculateSlotMargin } from '../data.js';
+import { SLOT_TYPES, generateId, showToast, calculateSlotMargin, parseProductUrl } from '../data.js';
 import {
   NAVER_PRODUCTS, COUPANG_PRODUCTS, OHOUSE_PRODUCTS, ALL_PRODUCTS,
   KAKAO_TEMPLATES, FIELD_LABELS
@@ -57,6 +57,11 @@ export function renderSlots() {
 
 function renderFormTab(defaults, history) {
   return `
+    <div class="ai-input-group fade-in">
+      <label class="ai-label">🔗 상품 URL 붙여넣기 (#15 자동 감지)</label>
+      <input class="ai-input" id="urlParseInput" placeholder="네이버/쿠팡 상품 URL 붙여넣기 → 자동 분석" />
+    </div>
+
     <div class="ai-input-group fade-in">
       <label class="ai-label">🛒 상품 선택 (원가 자동 입력)</label>
       <select class="ai-select" id="productSelect">
@@ -198,6 +203,19 @@ function renderTemplatesTab(defaults) {
 function bindSlotEvents() {
   const { data } = getApp();
 
+  // #15 URL auto-parsing
+  document.getElementById('urlParseInput')?.addEventListener('input', (e) => {
+    const url = e.target.value.trim();
+    if (url.length < 10) return;
+    const parsed = parseProductUrl(url);
+    if (parsed.platform !== 'unknown') {
+      showToast(`🔗 ${parsed.platform} 상품 감지!`, 'info', 1500);
+      if (parsed.keyword) {
+        const kw = document.getElementById('slotKeyword');
+        if (kw && !kw.value) kw.value = parsed.keyword;
+      }
+    }
+  });
   document.querySelectorAll('[data-slot-tab]').forEach(el => el.addEventListener('click', () => { activeTab = el.dataset.slotTab; navigate('slots'); }));
   document.querySelectorAll('[data-open-template]').forEach(el => el.addEventListener('click', () => showTemplateForm(el.dataset.openTemplate)));
 
