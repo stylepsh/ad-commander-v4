@@ -1,14 +1,21 @@
 /* ========================================
-   Reports — 고객 보고서 생성 (카톡 복사용)
+   Reports V4.0 — 고객 보고서 생성 (카톡 복사용)
+   연장 안내 자동 생성, 일괄 보고, 보고 기록 관리
    ======================================== */
 import { getApp, setData, navigate } from '../main.js';
-import { REPORT_TEMPLATES, formatDate, generateId } from '../data.js';
+import { REPORT_TEMPLATES, formatDate, generateId, showToast, getDaysUntil } from '../data.js';
 
 export function renderReports() {
   const { data } = getApp();
   const clients = data.clients || [];
   const activeClients = clients.filter(c => ['contract', 'active'].includes(c.status));
   const reportHistory = data.reportHistory || [];
+
+  // #27 Auto-detect clients needing extension notice
+  const expiringClients = activeClients.filter(c => {
+    const days = getDaysUntil(c.endDate);
+    return days !== null && days >= 0 && days <= 5;
+  });
 
   const today = new Date();
   const mm = String(today.getMonth() + 1).padStart(2, '0');
@@ -21,7 +28,19 @@ export function renderReports() {
       <div style="font-size:0.78rem;color:var(--text-muted);margin-top:4px">고객별 보고서 작성 → 카톡에 바로 복사</div>
     </div>
 
-    <!-- Client Select -->
+    <!-- #27 Extension Notice Alert -->
+    ${expiringClients.length > 0 ? `
+      <div class="card fade-in" style="margin-bottom:16px;border-left:3px solid var(--accent-orange);padding:14px 16px">
+        <div style="font-weight:700;font-size:0.9rem;color:var(--accent-orange);margin-bottom:8px">🔄 연장 안내 필요 고객 (${expiringClients.length}건)</div>
+        ${expiringClients.map(c => `
+          <div class="flex-between" style="margin-bottom:6px">
+            <span style="font-size:0.82rem">${c.name} <span style="color:var(--accent-red);font-size:0.75rem">D-${getDaysUntil(c.endDate)}</span></span>
+            <button class="btn btn-sm btn-primary" data-send-extend="${c.id}">연장 안내 →</button>
+          </div>
+        `).join('')}
+      </div>
+    ` : ''}
+
     <div class="ai-input-group fade-in">
       <label class="ai-label">고객 선택</label>
       <select class="ai-select" id="reportClient">
@@ -32,7 +51,6 @@ export function renderReports() {
       </select>
     </div>
 
-    <!-- Report Type -->
     <div class="ai-input-group fade-in">
       <label class="ai-label">보고서 유형</label>
       <select class="ai-select" id="reportType">
@@ -40,21 +58,14 @@ export function renderReports() {
       </select>
     </div>
 
-    <!-- Custom Fields -->
     <div class="ai-input-group fade-in">
       <label class="ai-label">오늘 작업 내용</label>
       <textarea class="ai-textarea" id="reportWork" style="min-height:80px" placeholder="- 트래픽 작업 3회 진행&#10;- 키워드 순위 확인&#10;- 찜하기 50건 완료"></textarea>
     </div>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px" class="fade-in">
-      <div class="ai-input-group">
-        <label class="ai-label">현재 순위</label>
-        <input class="ai-input" id="reportCurrentRank" type="number" placeholder="예: 25" />
-      </div>
-      <div class="ai-input-group">
-        <label class="ai-label">목표 순위</label>
-        <input class="ai-input" id="reportTargetRank" type="number" placeholder="예: 10" />
-      </div>
+    <div class="grid-2 fade-in">
+      <div class="ai-input-group"><label class="ai-label">현재 순위</label><input class="ai-input" id="reportCurrentRank" type="number" placeholder="예: 25" /></div>
+      <div class="ai-input-group"><label class="ai-label">목표 순위</label><input class="ai-input" id="reportTargetRank" type="number" placeholder="예: 10" /></div>
     </div>
 
     <div class="ai-input-group fade-in">
@@ -62,27 +73,24 @@ export function renderReports() {
       <input class="ai-input" id="reportMemo" placeholder="예: 키워드 변경 요청 있음" />
     </div>
 
-    <!-- Generate Button -->
-    <button class="btn btn-primary btn-full fade-in" id="reportGenerate" style="margin-bottom:12px">📝 보고서 생성</button>
+    <button class="btn btn-primary btn-full fade-in mb-sm" id="reportGenerate">📝 보고서 생성</button>
 
-    <!-- Preview -->
     <div id="reportPreview" class="slot-preview-card fade-in" style="display:none"></div>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:24px">
+    <div class="grid-2 mb-lg">
       <button class="btn btn-secondary btn-full" id="reportCopy" style="display:none">📋 카톡 복사</button>
       <button class="btn btn-secondary btn-full" id="reportSave" style="display:none">💾 기록 저장</button>
     </div>
 
-    <!-- Quick Report for Each Active Client -->
     ${activeClients.length > 0 ? `
       <div class="section-header"><div class="section-title">⚡ 빠른 보고 (진행중 고객)</div></div>
       <div class="stagger">
         ${activeClients.map(c => `
           <div class="card fade-in" style="margin-bottom:8px;padding:14px 16px;cursor:pointer" data-quick-report="${c.id}">
-            <div style="display:flex;justify-content:space-between;align-items:center">
+            <div class="flex-between">
               <div>
                 <div style="font-weight:600;font-size:0.9rem">${c.name}</div>
-                <div style="font-size:0.75rem;color:var(--text-muted)">${c.product || '-'}</div>
+                <div style="font-size:0.75rem;color:var(--text-muted)">${c.product || '-'} ${c.currentRank ? `| ${c.currentRank}위` : ''}</div>
               </div>
               <span class="btn btn-sm btn-secondary">보고서 →</span>
             </div>
@@ -93,21 +101,17 @@ export function renderReports() {
       <div class="card" style="text-align:center;padding:30px;color:var(--text-muted)">
         <div style="font-size:1.5rem;margin-bottom:8px">📭</div>
         <div>진행중인 고객이 없습니다</div>
-        <button class="btn btn-sm btn-primary" style="margin-top:12px" data-goto="clients">고객 등록하기</button>
+        <button class="btn btn-sm btn-primary mt-sm" data-goto="clients">고객 등록하기</button>
       </div>
     `}
 
-    <!-- Report History -->
     ${reportHistory.length > 0 ? `
-      <div style="margin-top:24px">
-        <div class="section-header"><div class="section-title">📚 보고 기록</div></div>
+      <div class="mt-lg">
+        <div class="section-header"><div class="section-title">📚 보고 기록 (${reportHistory.length}건)</div></div>
         ${reportHistory.slice(-10).reverse().map(r => `
           <div class="card fade-in" style="margin-bottom:8px;padding:12px 16px;cursor:pointer" data-load-report="${r.id}">
-            <div style="display:flex;justify-content:space-between;align-items:center">
-              <div>
-                <span style="font-size:0.85rem;font-weight:600">${r.clientName}</span>
-                <span style="font-size:0.7rem;color:var(--text-muted);margin-left:6px">${r.typeLabel}</span>
-              </div>
+            <div class="flex-between">
+              <div><span style="font-size:0.85rem;font-weight:600">${r.clientName}</span><span style="font-size:0.7rem;color:var(--text-muted);margin-left:6px">${r.typeLabel}</span></div>
               <span style="font-size:0.7rem;color:var(--text-muted)">${r.date}</span>
             </div>
           </div>
@@ -138,10 +142,20 @@ function bindReportEvents() {
   document.querySelectorAll('[data-quick-report]').forEach(el => {
     el.addEventListener('click', () => {
       const select = document.getElementById('reportClient');
-      if (select) {
-        select.value = el.dataset.quickReport;
-        select.dispatchEvent(new Event('change'));
-        select.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (select) { select.value = el.dataset.quickReport; select.dispatchEvent(new Event('change')); select.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+    });
+  });
+
+  // #27 Send extension notice
+  document.querySelectorAll('[data-send-extend]').forEach(el => {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const client = data.clients.find(c => c.id === el.dataset.sendExtend);
+      if (client) {
+        const template = REPORT_TEMPLATES.extend_notice;
+        const content = template.template(client);
+        navigator.clipboard.writeText(content);
+        showToast(`🔄 ${client.name} 연장 안내가 복사되었습니다!`, 'success');
       }
     });
   });
@@ -154,24 +168,13 @@ function bindReportEvents() {
     const currentRank = document.getElementById('reportCurrentRank').value;
     const targetRank = document.getElementById('reportTargetRank').value;
     const memo = document.getElementById('reportMemo').value;
-
     const client = data.clients.find(c => c.id === clientId) || { name: '미선택' };
-
-    // Override client ranks if provided
-    const reportClient = {
-      ...client,
-      currentRank: currentRank || client.currentRank,
-      targetRank: targetRank || client.targetRank,
-    };
-
+    const reportClient = { ...client, currentRank: currentRank || client.currentRank, targetRank: targetRank || client.targetRank };
     const template = REPORT_TEMPLATES[reportType];
     let content = template.template(reportClient, work);
-
     if (memo) content += `\n\n📌 ${memo}`;
-
     const preview = document.getElementById('reportPreview');
     if (preview) { preview.textContent = content; preview.style.display = 'block'; }
-
     const copyBtn = document.getElementById('reportCopy');
     const saveBtn = document.getElementById('reportSave');
     if (copyBtn) copyBtn.style.display = 'block';
@@ -183,9 +186,7 @@ function bindReportEvents() {
     const preview = document.getElementById('reportPreview');
     if (preview?.textContent) {
       navigator.clipboard.writeText(preview.textContent);
-      const btn = document.getElementById('reportCopy');
-      btn.textContent = '✅ 복사됨!';
-      setTimeout(() => btn.textContent = '📋 카톡 복사', 2000);
+      showToast('📋 보고서가 복사되었습니다!', 'success');
     }
   });
 
@@ -196,23 +197,16 @@ function bindReportEvents() {
     const reportType = document.getElementById('reportType').value;
     const client = data.clients.find(c => c.id === clientId);
     const template = REPORT_TEMPLATES[reportType];
-
     if (!data.reportHistory) data.reportHistory = [];
     data.reportHistory.push({
-      id: generateId(),
-      clientId,
-      clientName: client?.name || '미선택',
-      type: reportType,
-      typeLabel: template?.label || reportType,
+      id: generateId(), clientId, clientName: client?.name || '미선택',
+      type: reportType, typeLabel: template?.label || reportType,
       content: preview?.textContent || '',
       date: `${new Date().getMonth() + 1}.${String(new Date().getDate()).padStart(2, '0')}`,
       created: new Date().toISOString(),
     });
     setData(data);
-
-    const btn = document.getElementById('reportSave');
-    btn.textContent = '✅ 저장됨!';
-    setTimeout(() => btn.textContent = '💾 기록 저장', 2000);
+    showToast('💾 보고서가 저장되었습니다!', 'success');
   });
 
   // Load from history

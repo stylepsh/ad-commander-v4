@@ -1,9 +1,15 @@
 /* ========================================
-   AD COMMANDER v3.0 — 광고대행사 관제탑 데이터 스토어
+   AD COMMANDER v4.0 — 광고대행사 관제탑 데이터 스토어
+   50대 혁신 개선사항 적용
    고객지원팀장 박성혁 전용 시스템
    ======================================== */
 
-const STORAGE_KEY = 'adcommander_v3_data';
+const STORAGE_KEY = 'adcommander_v4_data';
+const UNDO_KEY = 'adcommander_v4_undo';
+const TRASH_KEY = 'adcommander_v4_trash';
+const BACKUP_KEY = 'adcommander_v4_backup';
+const MAX_UNDO = 30;
+const TRASH_DAYS = 30;
 
 /* ========= CLIENT STATUSES ========= */
 export const CLIENT_STATUS = [
@@ -102,6 +108,15 @@ export const REPORT_TEMPLATES = {
     template: (client) => {
       return `[작업 완료 보고]\n\n업체명: ${client.name}\n상품: ${client.product || '-'}\n\n📊 최종 결과\n- 시작 순위: ${client.startRank || '-'}위\n- 최종 순위: ${client.currentRank || '-'}위\n\n✅ 작업 기간: ${client.startDate || '-'} ~ ${client.endDate || '-'}\n\n감사합니다. 연장 문의는 언제든지 말씀해주세요!\n고객지원팀장 박성혁`;
     }
+  },
+  extend_notice: {
+    label: '🔄 연장 안내',
+    template: (client) => {
+      const today = new Date();
+      const mm = String(today.getMonth() + 1).padStart(2, '0');
+      const dd = String(today.getDate()).padStart(2, '0');
+      return `[${mm}.${dd} 연장 안내]\n\n안녕하세요. 고객지원팀장 박성혁입니다.\n\n업체명: ${client.name}\n상품: ${client.product || '-'}\n\n현재 진행 중인 작업이 곧 마감 예정입니다.\n마감일: ${client.endDate || '-'}\n\n📊 현재 성과\n- 현재 순위: ${client.currentRank || '-'}위\n- 목표 순위: ${client.targetRank || '-'}위\n\n연장을 희망하시면 말씀해 주세요!\n지속적인 순위 유지를 위해 연장을 추천드립니다.\n\n감사합니다.\n고객지원팀장 박성혁`;
+    }
   }
 };
 
@@ -111,42 +126,173 @@ const DEFAULT_DATA = {
     userName: '고객지원팀장 박성혁',
     companyName: '',
     notificationsEnabled: true,
+    darkMode: false,
     startDate: new Date().toISOString().split('T')[0],
     defaultSlotId: 'stylepsh',
     defaultSlotPw: '123456',
     defaultManager: '',
     defaultPayer: '',
+    pinCode: '',
+    autoBackup: true,
+    widgetOrder: ['kpi', 'tasks', 'slots', 'clients', 'quickActions'],
   },
-  clients: [],       // 고객 목록
-  tasks: [],         // 할일/한일
-  slots: [],         // 슬롯 기록
-  revenue: [],       // 매출 기록
-  reportHistory: [], // 보고서 기록
-  dailyLogs: {},     // 일일 체크
+  clients: [],
+  tasks: [],
+  slots: [],
+  revenue: [],
+  reportHistory: [],
+  dailyLogs: {},
+  csTickets: [],
+  accountHistory: [],
 };
 
+/* ========= #49 UNDO/REDO SYSTEM ========= */
+let undoStack = [];
+let redoStack = [];
+
+function pushUndo(data) {
+  try {
+    undoStack.push(JSON.stringify(data));
+    if (undoStack.length > MAX_UNDO) undoStack.shift();
+    redoStack = [];
+  } catch (e) { /* quota exceeded */ }
+}
+
+export function undo() {
+  if (undoStack.length === 0) return null;
+  const current = localStorage.getItem(STORAGE_KEY);
+  if (current) redoStack.push(current);
+  const prev = undoStack.pop();
+  localStorage.setItem(STORAGE_KEY, prev);
+  return JSON.parse(prev);
+}
+
+export function redo() {
+  if (redoStack.length === 0) return null;
+  const current = localStorage.getItem(STORAGE_KEY);
+  if (current) undoStack.push(current);
+  const next = redoStack.pop();
+  localStorage.setItem(STORAGE_KEY, next);
+  return JSON.parse(next);
+}
+
+export function canUndo() { return undoStack.length > 0; }
+export function canRedo() { return redoStack.length > 0; }
+
+/* ========= #50 TRASH SYSTEM ========= */
+export function getTrash() {
+  try {
+    const raw = localStorage.getItem(TRASH_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (e) { /* ignore */ }
+  return [];
+}
+
+export function moveToTrash(type, item) {
+  const trash = getTrash();
+  trash.push({ type, item, deletedAt: new Date().toISOString() });
+  localStorage.setItem(TRASH_KEY, JSON.stringify(trash));
+}
+
+export function restoreFromTrash(index) {
+  const trash = getTrash();
+  if (index < 0 || index >= trash.length) return null;
+  const restored = trash.splice(index, 1)[0];
+  localStorage.setItem(TRASH_KEY, JSON.stringify(trash));
+  return restored;
+}
+
+export function cleanTrash() {
+  const trash = getTrash();
+  const cutoff = Date.now() - (TRASH_DAYS * 24 * 60 * 60 * 1000);
+  const cleaned = trash.filter(t => new Date(t.deletedAt).getTime() > cutoff);
+  localStorage.setItem(TRASH_KEY, JSON.stringify(cleaned));
+}
+
+/* ========= DATA LOAD / SAVE ========= */
 export function loadData() {
+  cleanTrash();
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const saved = JSON.parse(raw);
-      return {
-        ...DEFAULT_DATA,
-        ...saved,
-        settings: { ...DEFAULT_DATA.settings, ...(saved.settings || {}) },
-        clients: saved.clients || [],
-        tasks: saved.tasks || [],
-        slots: saved.slots || [],
-        revenue: saved.revenue || [],
-        reportHistory: saved.reportHistory || [],
-      };
+      return deepMerge(DEFAULT_DATA, saved);
     }
-  } catch (e) { console.error(e); }
-  return { ...DEFAULT_DATA };
+    // Try v3 migration
+    const v3 = localStorage.getItem('adcommander_v3_data');
+    if (v3) {
+      const saved = JSON.parse(v3);
+      const migrated = deepMerge(DEFAULT_DATA, saved);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated));
+      return migrated;
+    }
+  } catch (e) { console.error('Load error:', e); }
+  return JSON.parse(JSON.stringify(DEFAULT_DATA));
+}
+
+function deepMerge(defaults, saved) {
+  const result = { ...defaults };
+  for (const key of Object.keys(saved)) {
+    if (key === 'settings') {
+      result.settings = { ...defaults.settings, ...(saved.settings || {}) };
+    } else if (Array.isArray(defaults[key])) {
+      result[key] = saved[key] || [];
+    } else if (typeof defaults[key] === 'object' && defaults[key] !== null) {
+      result[key] = { ...defaults[key], ...(saved[key] || {}) };
+    } else {
+      result[key] = saved[key];
+    }
+  }
+  return result;
 }
 
 export function saveData(d) {
+  pushUndo(d);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(d));
+  // #38 Auto backup snapshot (daily)
+  if (d.settings?.autoBackup) {
+    autoBackupCheck(d);
+  }
+}
+
+/* ========= #38 AUTO BACKUP ========= */
+function autoBackupCheck(d) {
+  try {
+    const lastBackup = localStorage.getItem(BACKUP_KEY + '_last');
+    const today = getToday();
+    if (lastBackup !== today) {
+      localStorage.setItem(BACKUP_KEY + '_' + today, JSON.stringify(d));
+      localStorage.setItem(BACKUP_KEY + '_last', today);
+      // Keep only last 7 backups
+      const keys = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k?.startsWith(BACKUP_KEY + '_2')) keys.push(k);
+      }
+      keys.sort();
+      while (keys.length > 7) {
+        localStorage.removeItem(keys.shift());
+      }
+    }
+  } catch (e) { /* quota exceeded, skip */ }
+}
+
+export function getBackupList() {
+  const keys = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k?.startsWith(BACKUP_KEY + '_2')) keys.push(k.replace(BACKUP_KEY + '_', ''));
+  }
+  return keys.sort().reverse();
+}
+
+export function restoreBackup(date) {
+  const raw = localStorage.getItem(BACKUP_KEY + '_' + date);
+  if (raw) {
+    localStorage.setItem(STORAGE_KEY, raw);
+    return JSON.parse(raw);
+  }
+  return null;
 }
 
 /* ========= UTILITY FUNCTIONS ========= */
@@ -203,6 +349,89 @@ export function getRevenueThisMonth(data) {
   }).reduce((sum, r) => sum + (r.amount || 0), 0);
 }
 
+/* ========= #37 미수금 현황 ========= */
+export function getUnpaidTotal(data) {
+  return data.clients
+    .filter(c => c.paymentStatus !== 'paid' && c.amount > 0 && !['churned', 'completed'].includes(c.status))
+    .reduce((sum, c) => sum + (c.amount || 0), 0);
+}
+
+export function getUnpaidClients(data) {
+  return data.clients.filter(c =>
+    c.paymentStatus !== 'paid' && c.amount > 0 && !['churned', 'completed'].includes(c.status)
+  );
+}
+
+/* ========= #24 계산서 미발행 트래킹 ========= */
+export function getInvoiceMissing(data) {
+  return data.clients.filter(c =>
+    c.paymentStatus === 'paid' && c.invoiceStatus !== 'issued' && c.amount > 0
+  );
+}
+
+/* ========= #25 이탈 위험 고객 ========= */
+export function getChurnRiskClients(data) {
+  const now = new Date();
+  return data.clients.filter(c => {
+    if (['churned', 'completed'].includes(c.status)) return false;
+    if (!c.endDate) return false;
+    const end = new Date(c.endDate);
+    const daysPast = Math.ceil((now - end) / (1000 * 60 * 60 * 24));
+    // 마감일이 14일 이상 지나고 연장되지 않은 고객
+    return daysPast > 14;
+  });
+}
+
+/* ========= #17 마진 실시간 분석 ========= */
+export function calculateSlotMargin(slot) {
+  const cost = slot.costPrice || 0;
+  const sell = slot.sellPrice || 0;
+  const qty = slot.qty || 1;
+  const resellerAmount = cost * qty;
+  const settlementAmount = sell * qty;
+  const margin = settlementAmount - resellerAmount;
+  const marginRate = settlementAmount > 0 ? Math.round((margin / settlementAmount) * 100) : 0;
+  const vat = Math.round(sell * 0.1);
+  const tax33 = Math.round(settlementAmount * 0.033);
+  const netRemittance = settlementAmount - tax33;
+  return { resellerAmount, settlementAmount, margin, marginRate, vat, tax33, netRemittance };
+}
+
+/* ========= #40 목표 순위 도달률 ========= */
+export function getSuccessRate(data) {
+  const eligible = data.clients.filter(c => c.targetRank && c.currentRank);
+  if (eligible.length === 0) return { rate: 0, reached: 0, total: 0 };
+  const reached = eligible.filter(c => c.currentRank <= c.targetRank).length;
+  return { rate: Math.round((reached / eligible.length) * 100), reached, total: eligible.length };
+}
+
+/* ========= #32 수익 기여 상품 분석 ========= */
+export function getRevenueByProduct(data) {
+  const map = {};
+  (data.slots || []).forEach(s => {
+    const key = s.productName || s.work || '기타';
+    if (!map[key]) map[key] = { name: key, totalMargin: 0, count: 0 };
+    const m = calculateSlotMargin(s);
+    map[key].totalMargin += m.margin;
+    map[key].count++;
+  });
+  return Object.values(map).sort((a, b) => b.totalMargin - a.totalMargin);
+}
+
+/* ========= #33 담당자별 퍼포먼스 ========= */
+export function getPerformanceByManager(data) {
+  const map = {};
+  (data.slots || []).forEach(s => {
+    const mgr = s.manager || '미지정';
+    if (!map[mgr]) map[mgr] = { name: mgr, count: 0, totalSell: 0, totalMargin: 0 };
+    const m = calculateSlotMargin(s);
+    map[mgr].count++;
+    map[mgr].totalSell += m.settlementAmount;
+    map[mgr].totalMargin += m.margin;
+  });
+  return Object.values(map).sort((a, b) => b.totalMargin - a.totalMargin);
+}
+
 /* ========= FORMAT BUSINESS NUMBER ========= */
 export function formatBizNumber(num) {
   if (!num) return '';
@@ -210,4 +439,65 @@ export function formatBizNumber(num) {
   if (clean.length <= 3) return clean;
   if (clean.length <= 5) return `${clean.slice(0, 3)}-${clean.slice(3)}`;
   return `${clean.slice(0, 3)}-${clean.slice(3, 5)}-${clean.slice(5, 10)}`;
+}
+
+/* ========= #9 TOAST NOTIFICATION SYSTEM ========= */
+export function showToast(message, type = 'info', duration = 3000) {
+  const container = document.getElementById('toast-container');
+  if (!container) return;
+  const toast = document.createElement('div');
+  toast.className = `toast toast-${type}`;
+  const icons = { success: '✅', error: '❌', warning: '⚠️', info: 'ℹ️' };
+  toast.innerHTML = `<span class="toast-icon">${icons[type] || icons.info}</span><span class="toast-msg">${message}</span>`;
+  container.appendChild(toast);
+  requestAnimationFrame(() => toast.classList.add('toast-show'));
+  setTimeout(() => {
+    toast.classList.remove('toast-show');
+    toast.classList.add('toast-hide');
+    setTimeout(() => toast.remove(), 300);
+  }, duration);
+}
+
+/* ========= #15 URL 자동 파싱 ========= */
+export function parseProductUrl(url) {
+  try {
+    const u = new URL(url);
+    const host = u.hostname;
+    if (host.includes('smartstore.naver.com')) {
+      const parts = u.pathname.split('/');
+      return { platform: 'naver', storeName: parts[1] || '', productId: parts[2] || '' };
+    }
+    if (host.includes('coupang.com')) {
+      const match = u.pathname.match(/products\/(\d+)/);
+      return { platform: 'coupang', productId: match?.[1] || '' };
+    }
+    return { platform: 'unknown', url };
+  } catch (e) {
+    return null;
+  }
+}
+
+/* ========= #7 KEYBOARD SHORTCUTS ========= */
+export function initKeyboardShortcuts(callbacks) {
+  document.addEventListener('keydown', (e) => {
+    // Cmd/Ctrl + K → Global search
+    if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+      e.preventDefault();
+      callbacks.search?.();
+    }
+    // Cmd/Ctrl + Z → Undo
+    if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) {
+      e.preventDefault();
+      callbacks.undo?.();
+    }
+    // Cmd/Ctrl + Shift + Z → Redo
+    if ((e.metaKey || e.ctrlKey) && e.key === 'z' && e.shiftKey) {
+      e.preventDefault();
+      callbacks.redo?.();
+    }
+    // Escape → Close modal
+    if (e.key === 'Escape') {
+      callbacks.closeModal?.();
+    }
+  });
 }
