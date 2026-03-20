@@ -2,7 +2,7 @@
    Settings V4.0 — 설정 & 매출 & 데이터 관리
    담당자 퍼포먼스, 휴지통, 백업, 다크모드 설정 등
    ======================================== */
-import { getApp, setData, navigate, showModal, closeModal, toggleDarkMode } from '../main.js';
+import { getApp, setData, navigate, showModal, closeModal, toggleDarkMode, changePin, logout } from '../main.js';
 import {
   generateId, formatMoney, getRevenueThisMonth,
   getPerformanceByManager, getBackupList, restoreBackup,
@@ -131,6 +131,14 @@ export function renderSettings() {
       <div class="toggle ${data.settings.darkMode ? 'on' : ''}"></div>
     </div>
 
+    <!-- PIN & Security -->
+    <div class="section-header fade-in"><div class="section-title">🔒 보안</div></div>
+    <div class="card fade-in mb-md" style="padding:16px">
+      <div class="ai-input-group"><label class="ai-label">PIN 변경 (4자리 숫자)</label><input class="ai-input" id="newPinInput" type="password" maxlength="4" placeholder="새 PIN 입력 (숫자 4자리)" style="text-align:center;font-size:1.2rem;letter-spacing:12px" /></div>
+      <button class="btn btn-secondary btn-full" id="changePinBtn">🔑 PIN 변경</button>
+    </div>
+    <button class="btn btn-full fade-in" id="logoutBtn" style="background:var(--accent-red);color:#fff;margin-bottom:12px">🔒 잠금 (로그아웃)</button>
+
     <button class="btn btn-primary btn-full fade-in mt-md" id="saveAll">💾 설정 저장</button>
 
     <!-- Excel Export -->
@@ -209,6 +217,24 @@ function bindSettingsEvents() {
 
   // #3 Dark Mode
   document.getElementById('toggleDarkMode')?.addEventListener('click', () => { toggleDarkMode(); navigate('settings'); });
+
+  // PIN change
+  document.getElementById('changePinBtn')?.addEventListener('click', () => {
+    const newPin = document.getElementById('newPinInput')?.value;
+    if (changePin(newPin)) {
+      showToast('🔑 PIN이 변경되었습니다!', 'success');
+      document.getElementById('newPinInput').value = '';
+    } else {
+      showToast('❌ 숫자 4자리를 입력해주세요', 'error');
+    }
+  });
+
+  // Logout
+  document.getElementById('logoutBtn')?.addEventListener('click', () => {
+    if (confirm('앱을 잠금합니다. PIN을 다시 입력해야 합니다.')) {
+      logout();
+    }
+  });
 
   // Add Revenue
   document.getElementById('addRevenue')?.addEventListener('click', () => {
